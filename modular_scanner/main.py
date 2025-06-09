@@ -3,11 +3,12 @@ from utils.http_client import HttpClient
 from utils.reporter import Reporter
 from modules.dir_bruteforcer import DirBruteForcer
 from modules.header_scanner import HeaderScanner
+from modules.port_scanner import PortScanner
 
 def main():
     parser = argparse.ArgumentParser(description='Modular scan scanner')
     parser.add_argument('-u', '--url', required=True, help='URL to scan')
-    parser.add_argument('-m', '--module', required=True, choices=['dirscan', 'headerscan'], help='Module to scan (for example dirscan)')
+    parser.add_argument('-m', '--module', required=True, choices=['dirscan', 'headerscan', 'portscan'], help='Module to scan (for example dirscan)')
     parser.add_argument('-w', '--wordlist', required=False, help='Path to wordlist dictionary')
     args = parser.parse_args()
     target_url = args.url
@@ -58,6 +59,54 @@ def main():
             print(f"No results")
 
 
+    elif args.module == 'portscan':
+
+        INTERESTING_PORTS = {
+
+            '21', '22', '23', '25', '53', '80', '110', '139', '143', '443', '445',
+
+            '1433', '1521', '3306', '3389', '5432', '5900', '8000', '8080', '8443'
+
+        }
+
+        scanner = PortScanner(target_url, reporter=reporter)
+
+        results = scanner.scan()
+
+        print("\n--- Portscan finished ---")
+
+        if results:
+            interesting_ports = []
+            other_ports = []
+            for port_info in results:
+
+                if port_info.get('port') in INTERESTING_PORTS:
+                    interesting_ports.append(port_info)
+                else:
+                    other_ports.append(port_info)
+
+
+            if interesting_ports:
+                print("\n🎯 Interested ports:")
+                for port_info in interesting_ports:
+                    port = port_info.get('port', 'N/A')
+                    service = port_info.get('service', 'unknown')
+                    version_info = port_info.get('version_info', 'Version data not found')
+                    print(f"  [+] Port {port}/tcp: {service} ({version_info})")
+            else:
+                print("\nℹ️ Nie znaleziono żadnych portów z listy interesujących.")
+
+            if other_ports:
+                print("\n[+] Pozostałe otwarte porty:")
+                for port_info in other_ports:
+                    port = port_info.get('port', 'N/A')
+                    service = port_info.get('service', 'unknown')
+                    version_info = port_info.get('version_info', 'Version data not found')
+                    print(f"  - Port {port}/tcp: {service} ({version_info})")
+        elif results == []:
+            print("Open ports not found")
+        else:
+            print("failed to retrieve scan results")
 
 
 
