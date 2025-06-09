@@ -1,0 +1,8 @@
+admin
+login.php
+index.php
+test
+images
+.git
+.env
+this-page-should-not-exist
