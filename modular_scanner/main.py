@@ -15,4 +15,6 @@ def main():
 
     if response:
         print(f"Success! Response from {target_url}: {response}")
-        print(f"response code {response.status_code}\n")
+
+if __name__ == "__main__":
+    main()

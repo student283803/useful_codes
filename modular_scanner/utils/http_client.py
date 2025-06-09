@@ -16,13 +16,12 @@ class HttpClient:
         self.session.headers.update(self.headers)
         print("HTTP client initialized")
 
-        def get(self, url):
-            """sending GET request"""
-
-            try:
-                response = self.session.get(url, timeout=self.timeout)
-                response.raise_for_status()
-                return response
-            except requests.exceptions.RequestException as e:
-                print(f"Error connecting to http client. Sending GET request to {url} failed: {e}")
-                return None
+    def get(self, url):
+        """sending GET request"""
+        try:
+            response = self.session.get(url, timeout=self.timeout)
+            response.raise_for_status()
+            return response
+        except requests.exceptions.RequestException as e:
+            print(f"Error connecting to http client. Sending GET request to {url} failed: {e}")
+            return None
