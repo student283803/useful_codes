@@ -20,23 +20,23 @@ This tool is built with a modular architecture and currently supports the follow
 
 -   **Scan a page for Reflected XSS:**
     ```bash
-    python main.py --url [http://testphp.vulnweb.com/search.php?test=query] --module xss
+    python main.py --url "http://testphp.vulnweb.com/search.php?test=query" --module xss
     ```
 -   **Scan a page for SQL injection:**
     ```bash
-    python main.py --url [http://testphp.vulnweb.com/search.php?test=query] --module sqli
+    python main.py --url "http://testphp.vulnweb.com/search.php?test=query" --module sqli
     ```
 -   **Test for Directory Traversal:**
     ```bash
-    python main.py --url [http://testphp.vulnweb.com/showimage.php?file=cat.gif] --module traversal
+    python main.py --url "http://testphp.vulnweb.com/showimage.php?file=cat.gif" --module traversal
     ```
 -   **Run a full scan with multiple attack types:**
     ```bash
-    python main.py --url [http://testphp.vulnweb.com] --module fullscan -w wordlists/test_wordlist.txt --attacks sqli,xss,traversal
+    python main.py --url "http://testphp.vulnweb.com" --module fullscan -w wordlists/test_wordlist.txt --attacks sqli,xss,traversal
     ```
 -   **Brute-force a login form:**
     ```bash
-    python main.py --url [http://testphp.vulnweb.com/login.php] --module login_brute --user-list wordlists/users.txt --pass-list wordlists/passwords.txt --user-param uname --pass-param pass --failure-string "Invalid password"
+    python main.py --url "http://testphp.vulnweb.com/login.php" --module login_brute --user-list wordlists/users.txt --pass-list wordlists/passwords.txt --user-param uname --pass-param pass --failure-string "Invalid password"
     #--user-list and --pass-list flags are optional
     ```
 

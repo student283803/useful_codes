@@ -27,17 +27,15 @@ class SqliScanner:
         data_or_params = {param: payload}
 
         try:
-            # Using the session object directly for more control over the request type
             if method.lower() == 'post':
                 response = self.client.session.post(url, data=data_or_params)
             else:
                 response = self.client.session.get(url, params=data_or_params)
 
-            # Check response for SQL error patterns
+            #Checking response for SQL error patterns
             for pattern in self.SQL_ERROR_PATTERNS:
                 if pattern in response.content.decode('utf-8', errors='ignore').lower():
                     finding = {"url": url, "parameter": param, "method": method.upper()}
-                    # Avoid adding duplicate findings
                     if finding not in self.vulnerable_params:
                         self.vulnerable_params.append(finding)
                         raw_log = {
@@ -57,7 +55,7 @@ class SqliScanner:
         """
         print(f"[*] Starting Error-Based SQLi scan for {url}...")
 
-        # 1. Test forms on the page
+        #1. Test forms on the page
         forms = get_forms(self.client, url)
         print(f"[*] Found {len(forms)} form(s) on the page.")
         for form in forms:
@@ -69,7 +67,7 @@ class SqliScanner:
                     print(f"[*] Testing parameter '{param_name}' in form with action '{form_url}'...")
                     self._test_parameter(form_url, method, param_name, "test_value")
 
-        # 2. Test parameters in the URL query string
+        #2. Test parameters in the URL query string
         parsed_url = urlparse(url)
         if parsed_url.query:
             query_params = parsed_url.query.split('&')
@@ -77,7 +75,7 @@ class SqliScanner:
             for param_pair in query_params:
                 if '=' in param_pair:
                     param_name, param_value = param_pair.split('=', 1)
-                    # Create a clean URL without query params for testing
+                    #Creating a clean URL without query params for testing
                     base_url_for_test = parsed_url._replace(query="").geturl()
                     print(f"[*] Testing URL parameter '{param_name}'...")
                     self._test_parameter(base_url_for_test, 'GET', param_name, param_value)

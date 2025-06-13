@@ -56,7 +56,7 @@ def main():
     login_args.add_argument("--user-param", help="Username parameter name from the form (e.g., 'username', 'uname')")
     login_args.add_argument("--pass-param", help="Password parameter name from the form (e.g., 'password', 'pass')")
     login_args.add_argument("--failure-string", help="(Optional but recommended) Text that appears after a failed login")
-    ########################################################################################################
+########################################################################################################
 
     args = parser.parse_args()
     target_url = args.url
