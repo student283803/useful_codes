@@ -1,11 +1,9 @@
-# In file: modules/sqli_scanner.py
-
 import requests
 from urllib.parse import urlparse, urljoin
 from bs4 import BeautifulSoup
-from utils.http_client import HttpClient  # Note: Corrected to HTTPClient for consistency
+from utils.http_client import HttpClient
 from utils.reporter import Reporter
-
+from utils.form_parser import get_forms
 
 class SqliScanner:
     """
@@ -22,20 +20,6 @@ class SqliScanner:
             "microsoft ole db provider for odbc drivers", "invalid sql statement"
         ]
         self.vulnerable_params = []
-
-    def _get_forms(self, url):
-        """Finds and parses all HTML forms on a given URL."""
-        try:
-            response = self.client.get(url)
-            if not response:
-                return []
-
-            soup = BeautifulSoup(response.content, "lxml")
-            return soup.find_all("form")
-        except Exception as e:
-            # This will now only catch errors from BeautifulSoup, not from a None response.
-            print(f"[DEBUG] Error during form parsing at {url}: {e}")
-            return []
 
     def _test_parameter(self, url, method, param, value):
         """Tests a single parameter for SQLi by injecting a single quote."""
@@ -74,18 +58,15 @@ class SqliScanner:
         print(f"[*] Starting Error-Based SQLi scan for {url}...")
 
         # 1. Test forms on the page
-        forms = self._get_forms(url)
+        forms = get_forms(self.client, url)
         print(f"[*] Found {len(forms)} form(s) on the page.")
         for form in forms:
-            action = form.get("action")
-            method = form.get("method", "get")
-            form_url = urljoin(url, action)
-
-            for input_tag in form.find_all(["input", "textarea"]):
-                param_name = input_tag.get("name")
-                input_type = input_tag.get("type", "text")
-                if param_name and input_type not in ["submit", "button", "reset", "checkbox", "radio"]:
-                    print(f"[*] Testing parameter '{param_name}' in form with action '{action}'...")
+            form_url = form['action']
+            method = form['method']
+            for input_field in form['inputs']:
+                param_name = input_field.get("name")
+                if param_name:
+                    print(f"[*] Testing parameter '{param_name}' in form with action '{form_url}'...")
                     self._test_parameter(form_url, method, param_name, "test_value")
 
         # 2. Test parameters in the URL query string

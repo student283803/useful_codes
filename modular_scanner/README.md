@@ -11,8 +11,10 @@ This tool is built with a modular architecture and currently supports the follow
 -   **Port Scanning**: A wrapper for the **Nmap** tool to perform service and version detection on open ports (`portscan`).
 -   **SQL Injection Detection**: Scans URL parameters and HTML forms for Error-Based SQL Injection vulnerabilities (`sqli`).
 -   **SQL Injection Exploitation**: An optional wrapper for the **sqlmap** tool to exploit found vulnerabilities (`--exploit` flag).
+-   **Reflected XSS Scanning**: Finds and tests input parameters for potential Reflected Cross-Site Scripting vulnerabilities (xss).
 -   **Full Scan Workflow**: A meta-module that chains directory discovery with SQLi scanning for automated find-and-exploit scenarios (`fullscan`).
 -   **Reporting**: Automatically archives raw results from all scans into timestamped directories.
+
 
 ## Setup & Installation
 

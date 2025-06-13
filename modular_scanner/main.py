@@ -6,6 +6,7 @@ from modules.header_scanner import HeaderScanner
 from modules.port_scanner import PortScanner
 from modules.sqli_scanner import SqliScanner
 from modules.sqli_exploiter import SqliExploiter
+from modules.xss_scanner import XssScanner
 
 
 def interactive_exploit_menu(finding, reporter):
@@ -40,7 +41,7 @@ def interactive_exploit_menu(finding, reporter):
 def main():
     parser = argparse.ArgumentParser(description='Modular scan scanner')
     parser.add_argument('-u', '--url', required=True, help='Target URL to scan')
-    parser.add_argument('-m', '--module', required=True, choices=['dirscan', 'headerscan', 'portscan', 'sqli', 'fullscan'], help='Module to run')
+    parser.add_argument('-m', '--module', required=True, choices=['dirscan', 'headerscan', 'portscan', 'sqli', 'fullscan', 'xss'], help='Module to run')
     parser.add_argument('-w', '--wordlist', required=False, help='Path to wordlist dictionary')
     parser.add_argument("--exploit", action="store_true", help="Attempt to exploit found SQLi vulnerabilities")
 
@@ -60,6 +61,7 @@ def main():
     reporter = Reporter()
     reporter.setup_target(target_url)
 
+############################################################## dirscan
 
     if args.module == 'dirscan':
         bruteforcer = DirBruteForcer(http_client, target_url, reporter=reporter)
@@ -70,6 +72,9 @@ def main():
                 print(f"  [+] {url} (Status: {status_code})")
         else:
             print(f"no hidden resources were found")
+
+############################################################## headerscan
+
     elif args.module == 'headerscan':
         scanner = HeaderScanner(http_client, target_url, reporter=reporter)
         results = scanner.analyze()
@@ -92,6 +97,7 @@ def main():
         else:
             print(f"No results")
 
+############################################################## NMAP
 
     elif args.module == 'portscan':
 
@@ -121,26 +127,29 @@ def main():
 
 
             if interesting_ports:
-                print("\n🎯 Interested ports:")
+                print("\n[*] Interested ports:")
                 for port_info in interesting_ports:
                     port = port_info.get('port', 'N/A')
                     service = port_info.get('service', 'unknown')
                     version_info = port_info.get('version_info', 'Version data not found')
                     print(f"  [+] Port {port}/tcp: {service} ({version_info})")
             else:
-                print("\nℹ️ Nie znaleziono żadnych portów z listy interesujących.")
+                print("\n No interested ports found")
 
             if other_ports:
-                print("\n[+] Pozostałe otwarte porty:")
+                print("\n[+] Rest of open ports:")
                 for port_info in other_ports:
                     port = port_info.get('port', 'N/A')
                     service = port_info.get('service', 'unknown')
                     version_info = port_info.get('version_info', 'Version data not found')
                     print(f"  - Port {port}/tcp: {service} ({version_info})")
         elif results == []:
-            print("Open ports not found")
+            print("[-] Open ports not found")
         else:
             print("failed to retrieve scan results")
+
+############################################################## SQLI
+
     elif args.module == 'sqli':
         scanner = SqliScanner(http_client, reporter=reporter)
         results = scanner.scan(target_url)
@@ -156,6 +165,9 @@ def main():
                 interactive_exploit_menu(results[0], reporter)
         else:
             print("\n[-] No obvious error-based SQLi vulnerabilities were found.")
+
+############################################################## FULLSCAN
+
     elif args.module == 'fullscan':
         print("--- Starting Full Scan Workflow (Discovery + SQLi Attack) ---")
 
@@ -196,6 +208,21 @@ def main():
                 interactive_exploit_menu(unique_findings[0], reporter)
         else:
             print("\n[-] No obvious error-based SQLi vulnerabilities were found on any discovered pages.")
+
+############################################################## XSS
+
+    elif args.module == 'xss':
+        scanner = XssScanner(http_client, reporter=reporter)
+        results = scanner.scan(target_url)
+
+        print("\n--- XSS Scan Finished ---")
+        if results:
+            print("\n[+] VULNERABILITY FOUND: Potential Reflected XSS.")
+            print("  Vulnerable parameters found:")
+            for finding in results:
+                print(f"  - URL: {finding['url']}, Method: {finding['method']}, Parameter: {finding['parameter']}")
+        else:
+            print("\n[-] No obvious reflected XSS vulnerabilities were found.")
 
 
 
