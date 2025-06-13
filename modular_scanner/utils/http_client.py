@@ -25,3 +25,4 @@ class HttpClient:
         except requests.exceptions.RequestException as e:
             print(f"Error connecting to http client. Sending GET request to {url} failed: {e}")
             return None
+

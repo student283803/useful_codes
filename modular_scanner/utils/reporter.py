@@ -13,7 +13,7 @@ class Reporter:
 
         parsed_url = urlparse(target_url)
         hostname = parsed_url.hostname or "local target"
-        timestamp = datetime.utcnow().strftime("%Y%-m%-d%-H%-M%-S")
+        timestamp = datetime.utcnow().strftime("%Y%/m%/d%/H%/M%/S")
 
         self.report_dir = os.path.join('archive', f'{hostname}_{timestamp}')
 

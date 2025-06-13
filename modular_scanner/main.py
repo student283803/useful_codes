@@ -4,12 +4,46 @@ from utils.reporter import Reporter
 from modules.dir_bruteforcer import DirBruteForcer
 from modules.header_scanner import HeaderScanner
 from modules.port_scanner import PortScanner
+from modules.sqli_scanner import SqliScanner
+from modules.sqli_exploiter import SqliExploiter
+
+
+def interactive_exploit_menu(finding, reporter):
+    """Starts an interactive menu to exploit a single vulnerability."""
+    exploiter = SqliExploiter(finding, reporter)
+
+    while True:
+        print("\n--- Interactive SQLi Exploitation Menu ---")
+        print("What do you want to do?")
+        print("[1] List databases")
+        print("[2] List tables from a database")
+        print("[3] Dump table content")
+        print("[0] Exit exploitation menu")
+
+        choice = input("Enter your choice: ")
+
+        if choice == '1':
+            exploiter.list_dbs()
+        elif choice == '2':
+            db_name = input("Enter the database name to list tables from: ")
+            exploiter.list_tables(db_name)
+        elif choice == '3':
+            db_name = input("Enter the database name: ")
+            table_name = input("Enter the table name to dump: ")
+            exploiter.dump_table(db_name, table_name)
+        elif choice == '0':
+            print("[*] Exiting exploitation menu.")
+            break
+        else:
+            print("Invalid choice, please try again.")
 
 def main():
     parser = argparse.ArgumentParser(description='Modular scan scanner')
-    parser.add_argument('-u', '--url', required=True, help='URL to scan')
-    parser.add_argument('-m', '--module', required=True, choices=['dirscan', 'headerscan', 'portscan'], help='Module to scan (for example dirscan)')
+    parser.add_argument('-u', '--url', required=True, help='Target URL to scan')
+    parser.add_argument('-m', '--module', required=True, choices=['dirscan', 'headerscan', 'portscan', 'sqli', 'fullscan'], help='Module to run')
     parser.add_argument('-w', '--wordlist', required=False, help='Path to wordlist dictionary')
+    parser.add_argument("--exploit", action="store_true", help="Attempt to exploit found SQLi vulnerabilities")
+
     args = parser.parse_args()
     target_url = args.url
 
@@ -20,8 +54,8 @@ def main():
     if response:
         print(f"Success! Response from {target_url}: {response}")
 
-    if args.module == 'dirscan' and not args.wordlist:
-        parser.error("--wordlist is required for dirscan")
+    if args.module in ['dirscan', 'fullscan'] and not args.wordlist:
+        parser.error(f"--wordlist is required for {args.module}")
 
     reporter = Reporter()
     reporter.setup_target(target_url)
@@ -107,7 +141,61 @@ def main():
             print("Open ports not found")
         else:
             print("failed to retrieve scan results")
+    elif args.module == 'sqli':
+        scanner = SqliScanner(http_client, reporter=reporter)
+        results = scanner.scan(target_url)
 
+        print("\n--- SQLi Scan Finished ---")
+        if results:
+            print("\n[+] VULNERABILITY FOUND: Potential Error-Based SQL Injection.")
+            print("  Vulnerable parameters found:")
+            for finding in results:
+                print(f"  - URL: {finding['url']}, Method: {finding['method']}, Parameter: {finding['parameter']}")
+
+            if args.exploit:
+                interactive_exploit_menu(results[0], reporter)
+        else:
+            print("\n[-] No obvious error-based SQLi vulnerabilities were found.")
+    elif args.module == 'fullscan':
+        print("--- Starting Full Scan Workflow (Discovery + SQLi Attack) ---")
+
+        # --- PHASE 1: DISCOVERY ---
+        print("\n[PHASE 1] Discovering directories and files...")
+        dir_scanner = DirBruteForcer(http_client, target_url, reporter=reporter)
+        dir_results = dir_scanner.scan(args.wordlist)
+
+        # Extract just the URLs from the results
+        discovered_urls = {item[0] for item in dir_results} if dir_results else set()
+        # Add the initial target URL to the set of pages to test
+        discovered_urls.add(target_url)
+
+        print(
+            f"\n[PHASE 1 FINISHED] Discovered {len(dir_results)} potential paths. Total unique URLs to test for SQLi: {len(discovered_urls)}")
+
+        # --- PHASE 2: SQLi ATTACK ---
+        print("\n[PHASE 2] Scanning all discovered URLs for Error-Based SQL Injection...")
+        sqli_scanner = SqliScanner(http_client, reporter=reporter)
+        total_sqli_findings = []
+
+        for url in discovered_urls:
+            # We call the scan method of the sqli_scanner for each found URL
+            findings = sqli_scanner.scan(url)
+            if findings:
+                total_sqli_findings.extend(findings)
+
+        # --- PHASE 3: FINAL REPORT ---
+        print("\n--- Full Scan Finished ---")
+        if total_sqli_findings:
+            print("\n[+] VULNERABILITY FOUND: Potential Error-Based SQL Injection discovered on the following pages:")
+            unique_findings = [dict(t) for t in {tuple(d.items()) for d in total_sqli_findings}]
+            for finding in total_sqli_findings:
+                print(f"  - URL: {finding['url']}, Method: {finding['method']}, Parameter: {finding['parameter']}")
+
+            if args.exploit and unique_findings:
+                print("\n--- Exploitation Phase Initiated (on first finding) ---")
+                interactive_exploit_menu(unique_findings[0], reporter)
+        else:
+            print("\n[-] No obvious error-based SQLi vulnerabilities were found on any discovered pages.")
 
 
 
