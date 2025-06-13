@@ -12,8 +12,33 @@ This tool is built with a modular architecture and currently supports the follow
 -   **SQL Injection Detection**: Scans URL parameters and HTML forms for Error-Based SQL Injection vulnerabilities (`sqli`).
 -   **SQL Injection Exploitation**: An optional wrapper for the **sqlmap** tool to exploit found vulnerabilities (`--exploit` flag).
 -   **Reflected XSS Scanning**: Finds and tests input parameters for potential Reflected Cross-Site Scripting vulnerabilities (xss).
+-   **Login Form Bruteforcer**: Performs a wordlist attack against a login form (login_brute)
 -   **Full Scan Workflow**: A meta-module that chains directory discovery with SQLi scanning for automated find-and-exploit scenarios (`fullscan`).
 -   **Reporting**: Automatically archives raw results from all scans into timestamped directories.
+
+## Usage
+
+-   **Scan a page for Reflected XSS:**
+    ```bash
+    python main.py --url [http://testphp.vulnweb.com/search.php?test=query] --module xss
+    ```
+-   **Scan a page for SQL injection:**
+    ```bash
+    python main.py --url [http://testphp.vulnweb.com/search.php?test=query] --module sqli
+    ```
+-   **Test for Directory Traversal:**
+    ```bash
+    python main.py --url [http://testphp.vulnweb.com/showimage.php?file=cat.gif] --module traversal
+    ```
+-   **Run a full scan with multiple attack types:**
+    ```bash
+    python main.py --url [http://testphp.vulnweb.com] --module fullscan -w wordlists/test_wordlist.txt --attacks sqli,xss,traversal
+    ```
+-   **Brute-force a login form:**
+    ```bash
+    python main.py --url [http://testphp.vulnweb.com/login.php] --module login_brute --user-list wordlists/users.txt --pass-list wordlists/passwords.txt --user-param uname --pass-param pass --failure-string "Invalid password"
+    #--user-list and --pass-list flags are optional
+    ```
 
 
 ## Setup & Installation

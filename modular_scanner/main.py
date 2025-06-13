@@ -8,6 +8,7 @@ from modules.sqli_scanner import SqliScanner
 from modules.sqli_exploiter import SqliExploiter
 from modules.xss_scanner import XssScanner
 from modules.traversal_scanner import TraversalScanner
+from modules.login_bruteforcer import LoginBruteforcer
 
 
 def interactive_exploit_menu(finding, reporter):
@@ -42,10 +43,20 @@ def interactive_exploit_menu(finding, reporter):
 def main():
     parser = argparse.ArgumentParser(description='Modular scan scanner')
     parser.add_argument('-u', '--url', required=True, help='Target URL to scan')
-    parser.add_argument('-m', '--module', required=True, choices=['dirscan', 'headerscan', 'portscan', 'sqli', 'fullscan', 'xss', 'traversal'], help='Module to run')
+    parser.add_argument('-m', '--module', required=True, choices=['dirscan', 'headerscan', 'portscan', 'sqli', 'fullscan', 'xss', 'traversal', 'login_brute'], help='Module to run')
     parser.add_argument('-w', '--wordlist', required=False, help='Path to wordlist dictionary')
     parser.add_argument("--exploit", action="store_true", help="Attempt to exploit found SQLi vulnerabilities")
     parser.add_argument("--attacks", default="sqli,xss", help="Comma-separated list of attacks for fullscan mode (e.g., sqli,xss,traversal).")
+
+#only for login_brute
+########################################################################################################
+    login_args = parser.add_argument_group('Login Bruteforcer Arguments')
+    login_args.add_argument("--user-list", help="Path to username wordlist")
+    login_args.add_argument("--pass-list", help="Path to password wordlist")
+    login_args.add_argument("--user-param", help="Username parameter name from the form (e.g., 'username', 'uname')")
+    login_args.add_argument("--pass-param", help="Password parameter name from the form (e.g., 'password', 'pass')")
+    login_args.add_argument("--failure-string", help="Text that appears on the page after a FAILED login attempt")
+    ########################################################################################################
 
     args = parser.parse_args()
     target_url = args.url
@@ -263,6 +274,21 @@ def main():
                 print(f"  - Type: {finding.get('type')}, URL: {finding.get('url')}, Parameter: {finding.get('parameter')}, Payload: {finding.get('payload')}")
         else:
             print("\n[-] No obvious Directory Traversal vulnerabilities were found.")
+
+########################################################## LOGIN BRUTE-FORCE
+
+    elif args.module == 'login_brute':
+        if not (args.user_list and args.pass_list and args.failure_string):
+            parser.error("--user-list, --pass-list, and --failure-string are required for the login_brute module.")
+
+        brute_config = {
+            "url": target_url,
+            "user_param": args.user_param,
+            "pass_param": args.pass_param,
+            "failure_string": args.failure_string,
+        }
+        scanner = LoginBruteforcer(http_client, reporter, config=brute_config)
+        scanner.run_attack(args.user_list, args.pass_list)
 
 
 
