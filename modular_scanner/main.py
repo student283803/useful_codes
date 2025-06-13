@@ -55,7 +55,7 @@ def main():
     login_args.add_argument("--pass-list", help="Path to password wordlist")
     login_args.add_argument("--user-param", help="Username parameter name from the form (e.g., 'username', 'uname')")
     login_args.add_argument("--pass-param", help="Password parameter name from the form (e.g., 'password', 'pass')")
-    login_args.add_argument("--failure-string", help="Text that appears on the page after a FAILED login attempt")
+    login_args.add_argument("--failure-string", help="(Optional but recommended) Text that appears after a failed login")
     ########################################################################################################
 
     args = parser.parse_args()
@@ -278,7 +278,7 @@ def main():
 ########################################################## LOGIN BRUTE-FORCE
 
     elif args.module == 'login_brute':
-        if not (args.user_list and args.pass_list and args.failure_string):
+        if not (args.user_list and args.pass_list):
             parser.error("--user-list, --pass-list, and --failure-string are required for the login_brute module.")
 
         brute_config = {
