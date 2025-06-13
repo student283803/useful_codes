@@ -7,6 +7,7 @@ from modules.port_scanner import PortScanner
 from modules.sqli_scanner import SqliScanner
 from modules.sqli_exploiter import SqliExploiter
 from modules.xss_scanner import XssScanner
+from modules.traversal_scanner import TraversalScanner
 
 
 def interactive_exploit_menu(finding, reporter):
@@ -41,9 +42,10 @@ def interactive_exploit_menu(finding, reporter):
 def main():
     parser = argparse.ArgumentParser(description='Modular scan scanner')
     parser.add_argument('-u', '--url', required=True, help='Target URL to scan')
-    parser.add_argument('-m', '--module', required=True, choices=['dirscan', 'headerscan', 'portscan', 'sqli', 'fullscan', 'xss'], help='Module to run')
+    parser.add_argument('-m', '--module', required=True, choices=['dirscan', 'headerscan', 'portscan', 'sqli', 'fullscan', 'xss', 'traversal'], help='Module to run')
     parser.add_argument('-w', '--wordlist', required=False, help='Path to wordlist dictionary')
     parser.add_argument("--exploit", action="store_true", help="Attempt to exploit found SQLi vulnerabilities")
+    parser.add_argument("--attacks", default="sqli,xss", help="Comma-separated list of attacks for fullscan mode (e.g., sqli,xss,traversal).")
 
     args = parser.parse_args()
     target_url = args.url
@@ -168,46 +170,71 @@ def main():
 
 ############################################################## FULLSCAN
 
-    elif args.module == 'fullscan':
-        print("--- Starting Full Scan Workflow (Discovery + SQLi Attack) ---")
 
-        # --- PHASE 1: DISCOVERY ---
+    elif args.module == 'fullscan':
+
+        print(f"--- Starting Full Scan Workflow with attacks: {args.attacks} ---")
+        # PHASE 1: DISCOVERY
         print("\n[PHASE 1] Discovering directories and files...")
         dir_scanner = DirBruteForcer(http_client, target_url, reporter=reporter)
         dir_results = dir_scanner.scan(args.wordlist)
-
-        # Extract just the URLs from the results
         discovered_urls = {item[0] for item in dir_results} if dir_results else set()
-        # Add the initial target URL to the set of pages to test
         discovered_urls.add(target_url)
-
         print(
-            f"\n[PHASE 1 FINISHED] Discovered {len(dir_results)} potential paths. Total unique URLs to test for SQLi: {len(discovered_urls)}")
+            f"\n[PHASE 1 FINISHED] Discovered {len(dir_results)} potential paths. Total unique URLs to test: {len(discovered_urls)}")
+        # PHASE 2: ATTACK
+        attack_types = [attack.strip() for attack in args.attacks.split(',')]
 
-        # --- PHASE 2: SQLi ATTACK ---
-        print("\n[PHASE 2] Scanning all discovered URLs for Error-Based SQL Injection...")
-        sqli_scanner = SqliScanner(http_client, reporter=reporter)
-        total_sqli_findings = []
+        if 'sqli' in attack_types:
+            print("\n[ATTACK - SQLi] Scanning all discovered URLs for Error-Based SQL Injection...")
+            sqli_scanner = SqliScanner(http_client, reporter=reporter)
+            total_sqli_findings = []
+            for url in discovered_urls:
+                findings = sqli_scanner.scan(url)
+                if findings:
+                    total_sqli_findings.extend(findings)
+            if total_sqli_findings:
+                unique_findings = [dict(t) for t in {tuple(d.items()) for d in total_sqli_findings}]
+                print("\n[+] SQLi VULNERABILITY FOUND:")
+                for finding in unique_findings:
+                    print(f"  - URL: {finding['url']}, Method: {finding['method']}, Parameter: {finding['parameter']}")
+                if args.exploit and unique_findings:
+                    interactive_exploit_menu(unique_findings[0], reporter)
+            else:
+                print("\n[-] No SQLi vulnerabilities found in this phase.")
 
-        for url in discovered_urls:
-            # We call the scan method of the sqli_scanner for each found URL
-            findings = sqli_scanner.scan(url)
-            if findings:
-                total_sqli_findings.extend(findings)
+        if 'xss' in attack_types:
+            print("\n[ATTACK - XSS] Scanning all discovered URLs for Reflected XSS...")
+            xss_scanner = XssScanner(http_client, reporter=reporter)
+            total_xss_findings = []
+            for url in discovered_urls:
+                findings = xss_scanner.scan(url)
+                if findings:
+                    total_xss_findings.extend(findings)
+            if total_xss_findings:
+                unique_findings = [dict(t) for t in {tuple(d.items()) for d in total_xss_findings}]
+                print("\n[+] XSS VULNERABILITY FOUND:")
+                for finding in unique_findings:
+                    print(f"  - URL: {finding['url']}, Method: {finding['method']}, Parameter: {finding['parameter']}")
+            else:
+                print("\n[-] No XSS vulnerabilities found in this phase.")
 
-        # --- PHASE 3: FINAL REPORT ---
+        if 'traversal' in attack_types:
+            print("\n[ATTACK - TRAVERSAL] Scanning all discovered URLs for Directory Traversal...")
+            traversal_scanner = TraversalScanner(http_client, reporter=reporter)
+            total_traversal_findings = []
+            for url in discovered_urls:
+                findings = traversal_scanner.scan(url)
+                if findings:
+                    total_traversal_findings.extend(findings)
+            if total_traversal_findings:
+                unique_findings = [dict(t) for t in {tuple(d.items()) for d in total_traversal_findings}]
+                print("\n[+] TRAVERSAL VULNERABILITY FOUND:")
+                for finding in unique_findings:
+                    print(f"  - URL: {finding['url']}, Parameter: {finding['parameter']}")
+            else:
+                print("\n[-] No Directory Traversal vulnerabilities found in this phase.")
         print("\n--- Full Scan Finished ---")
-        if total_sqli_findings:
-            print("\n[+] VULNERABILITY FOUND: Potential Error-Based SQL Injection discovered on the following pages:")
-            unique_findings = [dict(t) for t in {tuple(d.items()) for d in total_sqli_findings}]
-            for finding in total_sqli_findings:
-                print(f"  - URL: {finding['url']}, Method: {finding['method']}, Parameter: {finding['parameter']}")
-
-            if args.exploit and unique_findings:
-                print("\n--- Exploitation Phase Initiated (on first finding) ---")
-                interactive_exploit_menu(unique_findings[0], reporter)
-        else:
-            print("\n[-] No obvious error-based SQLi vulnerabilities were found on any discovered pages.")
 
 ############################################################## XSS
 
@@ -223,6 +250,19 @@ def main():
                 print(f"  - URL: {finding['url']}, Method: {finding['method']}, Parameter: {finding['parameter']}")
         else:
             print("\n[-] No obvious reflected XSS vulnerabilities were found.")
+
+############################################################## TRAVERSAL
+
+    elif args.module == 'traversal':
+        scanner = TraversalScanner(http_client, reporter=reporter)
+        results = scanner.scan(target_url)
+        print("\n--- Directory Traversal Scan Finished ---")
+        if results:
+            print("\n[+] VULNERABILITY FOUND: Potential Directory Traversal.")
+            for finding in results:
+                print(f"  - Type: {finding.get('type')}, URL: {finding.get('url')}, Parameter: {finding.get('parameter')}, Payload: {finding.get('payload')}")
+        else:
+            print("\n[-] No obvious Directory Traversal vulnerabilities were found.")
 
 
 
