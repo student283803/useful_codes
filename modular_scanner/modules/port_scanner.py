@@ -38,7 +38,7 @@ class PortScanner:
                     self.results.append({
                         "port": port_id,
                         "service": service_name,
-                        version: full_service_info,
+                        "version": full_service_info,
                     })
             return self.results
         except FileNotFoundError:
