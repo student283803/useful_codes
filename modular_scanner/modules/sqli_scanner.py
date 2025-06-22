@@ -10,7 +10,6 @@ class SqliScanner:
     Module for detecting Error-Based SQL Injection vulnerabilities.
     """
 
-    # Note: Corrected to HTTPClient for consistency
     def __init__(self, http_client: HttpClient, reporter: Reporter):
         self.client = http_client
         self.reporter = reporter
