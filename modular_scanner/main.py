@@ -53,9 +53,6 @@ def main():
     login_args = parser.add_argument_group('Login Bruteforcer Arguments')
     login_args.add_argument("--user-list", help="Path to username wordlist")
     login_args.add_argument("--pass-list", help="Path to password wordlist")
-    login_args.add_argument("--user-param", help="Username parameter name from the form (e.g., 'username', 'uname')")
-    login_args.add_argument("--pass-param", help="Password parameter name from the form (e.g., 'password', 'pass')")
-    login_args.add_argument("--failure-string", help="(Optional but recommended) Text that appears after a failed login")
 ########################################################################################################
 
     args = parser.parse_args()
@@ -140,14 +137,14 @@ def main():
 
 
             if interesting_ports:
-                print("\n[*] Interested ports:")
+                print("\n[*] Interesting ports:")
                 for port_info in interesting_ports:
                     port = port_info.get('port', 'N/A')
                     service = port_info.get('service', 'unknown')
                     version_info = port_info.get('version_info', 'Version data not found')
                     print(f"  [+] Port {port}/tcp: {service} ({version_info})")
             else:
-                print("\n No interested ports found")
+                print("\n No interesting ports found")
 
             if other_ports:
                 print("\n[+] Rest of open ports:")
